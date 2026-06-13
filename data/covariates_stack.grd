@@ -1,0 +1,26 @@
+[general]
+creator=R package 'raster'
+created=2026-06-12 18:32:29
+[data]
+datatype=FLT4S
+byteorder=little
+nbands=16
+bandorder=BIL
+minvalue=-0.665690695322725:-0.498955314442514:-0.731132487802862:-0.822935774625704:-1.40193301386015:-2.37651116319617:-0.61959117843629:-0.596562519824268:-1.06240403547775:-0.966671959746986:-0.634848106461879:-0.332471914876302:-0.80344670414673:-11.9335461341246:-0.764345776825838:-0.11445043747908
+maxvalue=3.16643573652082:7.84861772569947:4.88060709357462:7.18059740042197:5.07874194271275:1.21109691139822:2.10872288721134:2.99084407034335:6.42978942353281:3.35590615341859:1.58309764082366:11.0967563593304:5.69441921726608:10.3181721053615:9.11813761019048:13.0946911390249
+nodatavalue=-3.4e+38
+[legend]
+legendtype=
+values=
+color=
+[description]
+layername=crop:dist2crop:dist2karst:dist2water:elevation:enm:forest:forest_gcam:ghfp1:ghpf2:karst:lights:slope:TPI:TRI:water
+[georeference]
+nrows=579
+ncols=741
+xmin=-2217695.16358461
+ymin=-1946807.74135402
+xmax=1487304.83641539
+ymax=948192.258645978
+projection=+proj=aeqd +lat_0=32 +lon_0=-100 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs
+wkt=PROJCRS["unknown",    BASEGEOGCRS["unknown",        DATUM["World Geodetic System 1984",            ELLIPSOID["WGS 84",6378137,298.257223563,                LENGTHUNIT["metre",1]],            ID["EPSG",6326]],        PRIMEM["Greenwich",0,            ANGLEUNIT["degree",0.0174532925199433],            ID["EPSG",8901]]],    CONVERSION["unknown",        METHOD["Azimuthal Equidistant",            ID["EPSG",1125]],        PARAMETER["Latitude of natural origin",32,            ANGLEUNIT["degree",0.0174532925199433],            ID["EPSG",8801]],        PARAMETER["Longitude of natural origin",-100,            ANGLEUNIT["degree",0.0174532925199433],            ID["EPSG",8802]],        PARAMETER["False easting",0,            LENGTHUNIT["metre",1],            ID["EPSG",8806]],        PARAMETER["False northing",0,            LENGTHUNIT["metre",1],            ID["EPSG",8807]]],    CS[Cartesian,2],        AXIS["(E)",east,            ORDER[1],            LENGTHUNIT["metre",1,                ID["EPSG",9001]]],        AXIS["(N)",north,            ORDER[2],            LENGTHUNIT["metre",1,                ID["EPSG",9001]]]]

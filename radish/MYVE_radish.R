@@ -15,19 +15,54 @@ data(melip)
 
 setwd("D:/Github/MYVE_LGA/data")
 dir()
-list.files("./SpatialLayers", pattern=".tif$")
+env_layers <- list.files("./SpatialLayers", pattern=".tif$")
 
 # scaling spatial covariates helps avoid numeric overflow
-covariates <- raster::stack(list(altitude = raster::scale(melip.altitude), 
-                                 forestcover = raster::scale(melip.forestcover)))
+#covariates <- raster::stack(list(altitude = raster::scale(melip.altitude), 
+ #                                forestcover = raster::scale(melip.forestcover)))
 
-covariates <- raster::stack(list())
+# Create raster stack
+covariates1 <- raster::stack(list(crop = raster::scale(raster(paste0("./SpatialLayers/",env_layers[1]))),
+                                 dist2crop = raster::scale(raster(paste0("./SpatialLayers/",env_layers[2]))),
+                                 dist2karst = raster::scale(raster(paste0("./SpatialLayers/",env_layers[3]))),
+                                 dist2water = raster::scale(raster(paste0("./SpatialLayers/",env_layers[4]))),
+                                 elevation = raster::scale(raster(paste0("./SpatialLayers/",env_layers[5]))),
+                                 enm = raster::scale(raster(paste0("./SpatialLayers/",env_layers[6]))),
+                                 forest = raster::scale(raster(paste0("./SpatialLayers/",env_layers[7]))),
+                                 forest_gcam = raster::scale(raster(paste0("./SpatialLayers/",env_layers[8]))),
+                                 ghfp1 = raster::scale(raster(paste0("./SpatialLayers/",env_layers[9]))),
+                                 ghpf2 = raster::scale(raster(paste0("./SpatialLayers/",env_layers[10]))),
+                                 karst = raster::scale(raster(paste0("./SpatialLayers/",env_layers[11]))),
+                                 lights = raster::scale(raster(paste0("./SpatialLayers/",env_layers[12]))),
+                                 slope = raster::scale(raster(paste0("./SpatialLayers/",env_layers[13]))),
+                                 TPI = raster::scale(raster(paste0("./SpatialLayers/",env_layers[14]))),
+                                 TRI = raster::scale(raster(paste0("./SpatialLayers/",env_layers[15]))),
+                                 water = raster::scale(raster(paste0("./SpatialLayers/",env_layers[16])))
+                                  ))
+# Write raster stack to disk
+writeRaster(covariates1, filename = "covariates_stack.grd")
+# Read in raster stack from disk, shouldn't need individual layers above
+covariates <- stack("D:/Github/MYVE_LGA/data/covariates_stack.grd")
 
+# rename rasters in stack to match
+names(covariates) <- names(covariates1)
+str(covariates)
+# Cropping Flora's layers to match other layers NoData
+#crop_cropped <- covariates[["crop"]] + covariates[["elevation"]] - covariates[["elevation"]]
+#dist2crop_cropped <- covariates[["dist2crop"]] + covariates[["elevation"]] - covariates[["elevation"]]
+#lights_cropped <- covariates[["lights"]] + covariates[["elevation"]] - covariates[["elevation"]]
+#writeRaster(crop_cropped, "D:/Github/MYVE_LGA/data/SpatialLayers/cropland_binary_NALCMS_azeq_5km_clip_masked.tif")
+#writeRaster(dist2crop_cropped, "D:/Github/MYVE_LGA/data/SpatialLayers/Dist2cropland_NALCMS_azeq_5km_clip_masked.tif")
+#writeRaster(lights_cropped, "D:/Github/MYVE_LGA/data/SpatialLayers/lights_NASA_NnadirCompSnowFree_azeq_5km_clip_masked.tif")
 
-plot(covariates[["altitude"]])
-points(melip.coords, pch = 19)
+myve_coords <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVECoordinates.csv"))
+head(myve_coords)
+myve_points <- SpatialPoints(myve_coords[,2:3])
 
-surface <- conductance_surface(covariates, melip.coords, directions = 8)
+plot(covariates[["lights"]])
+points(myve_points, pch = 19)
+
+surface <- conductance_surface(covariates, myve_points, directions = 8)
 
 fit_nnls <- radish(melip.Fst ~ forestcover + altitude, surface, 
                    radish::loglinear_conductance, radish::leastsquares)
@@ -135,3 +170,14 @@ radish_algorithm(radish::loglinear_conductance(~forestcover + altitude, surface$
 #                      radish::generalized_wishart, surface, 
 #                      pmax(melip.Fst, 0), nu = 1000, theta = x)$objective,
 #                  c(-0.3, 0.3))
+
+
+
+# Converting ENM layer to resistance
+
+enm_conductance <- raster("D:/Github/MYVE_LGA/data/SpatialLayers/ENM_MedianROC.tif")
+plot(enm_conductance)
+enm_resistance <- 1 - (enm_conductance/1000)
+str(enm_resistance)
+writeRaster(enm_resistance, "D:/Github/MYVE_LGA/data/SpatialLayers/ENM_MedianROC_resistance.tif")
+
