@@ -16,13 +16,14 @@ data(melip)
 setwd("D:/Github/MYVE_LGA/data")
 dir()
 env_layers <- list.files("./SpatialLayers", pattern=".tif$")
-
+plot(raster("D:/Github/MYVE_LGA/data/SpatialLayers/cropland_binary_NALCMS_azeq_5km_clip_masked.tif"))
+crop <- raster("D:/Github/MYVE_LGA/data/SpatialLayers/cropland_binary_NALCMS_azeq_5km_clip_masked.tif")
 # scaling spatial covariates helps avoid numeric overflow
 #covariates <- raster::stack(list(altitude = raster::scale(melip.altitude), 
  #                                forestcover = raster::scale(melip.forestcover)))
 
 # Create raster stack
-covariates1 <- raster::stack(list(crop = raster::scale(raster(paste0("./SpatialLayers/",env_layers[1]))),
+covariates1-scaled <- raster::stack(list(crop = raster::scale(raster(paste0("./SpatialLayers/",env_layers[1]))),
                                  dist2crop = raster::scale(raster(paste0("./SpatialLayers/",env_layers[2]))),
                                  dist2karst = raster::scale(raster(paste0("./SpatialLayers/",env_layers[3]))),
                                  dist2water = raster::scale(raster(paste0("./SpatialLayers/",env_layers[4]))),
@@ -39,39 +40,73 @@ covariates1 <- raster::stack(list(crop = raster::scale(raster(paste0("./SpatialL
                                  TRI = raster::scale(raster(paste0("./SpatialLayers/",env_layers[15]))),
                                  water = raster::scale(raster(paste0("./SpatialLayers/",env_layers[16])))
                                   ))
+
+covariates1 <- raster::stack(list(crop = raster(paste0("./SpatialLayers/",env_layers[1])),
+                                  dist2crop = raster(paste0("./SpatialLayers/",env_layers[2])),
+                                  dist2karst = raster(paste0("./SpatialLayers/",env_layers[3])),
+                                  dist2water = raster(paste0("./SpatialLayers/",env_layers[4])),
+                                  elevation = raster(paste0("./SpatialLayers/",env_layers[5])),
+                                  enm = raster(paste0("./SpatialLayers/",env_layers[6])),
+                                  forest = raster(paste0("./SpatialLayers/",env_layers[7])),
+                                  forest_gcam = raster(paste0("./SpatialLayers/",env_layers[8])),
+                                  ghfp1 = raster(paste0("./SpatialLayers/",env_layers[9])),
+                                  ghpf2 = raster(paste0("./SpatialLayers/",env_layers[10])),
+                                  karst = raster(paste0("./SpatialLayers/",env_layers[11])),
+                                  lights = raster(paste0("./SpatialLayers/",env_layers[12])),
+                                  slope = raster(paste0("./SpatialLayers/",env_layers[13])),
+                                  TPI = raster(paste0("./SpatialLayers/",env_layers[14])),
+                                  TRI = raster(paste0("./SpatialLayers/",env_layers[15])),
+                                  water = raster(paste0("./SpatialLayers/",env_layers[16]))
+))
+# Have identical NoData mask on all layers
+na_mask <- sum(covariates1)
+covariates1 <- raster::mask(covariates1, na_mask)
+
 # Write raster stack to disk
 writeRaster(covariates1, filename = "covariates_stack.grd")
 # Read in raster stack from disk, shouldn't need individual layers above
 covariates <- stack("D:/Github/MYVE_LGA/data/covariates_stack.grd")
+names(covariates)
 
-# rename rasters in stack to match
-names(covariates) <- names(covariates1)
-str(covariates)
-# Cropping Flora's layers to match other layers NoData
-#crop_cropped <- covariates[["crop"]] + covariates[["elevation"]] - covariates[["elevation"]]
-#dist2crop_cropped <- covariates[["dist2crop"]] + covariates[["elevation"]] - covariates[["elevation"]]
-#lights_cropped <- covariates[["lights"]] + covariates[["elevation"]] - covariates[["elevation"]]
-#writeRaster(crop_cropped, "D:/Github/MYVE_LGA/data/SpatialLayers/cropland_binary_NALCMS_azeq_5km_clip_masked.tif")
-#writeRaster(dist2crop_cropped, "D:/Github/MYVE_LGA/data/SpatialLayers/Dist2cropland_NALCMS_azeq_5km_clip_masked.tif")
-#writeRaster(lights_cropped, "D:/Github/MYVE_LGA/data/SpatialLayers/lights_NASA_NnadirCompSnowFree_azeq_5km_clip_masked.tif")
 
+################ Spatial coordinates ###############
 myve_coords <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVECoordinates.csv"))
 head(myve_coords)
 myve_points <- SpatialPoints(myve_coords[,2:3])
 
-plot(covariates[["lights"]])
+plot(covariates[["enm"]])
 points(myve_points, pch = 19)
+
+################# Genetic distance convert to matrix
+gendist_raw <- read.csv("D:/Github/MYVE_LGA/data/GeneticDist.csv")
+ids <- sort(unique(c(gendist_raw$Indv1, gendist_raw$Indv2)))
+gen_mat <- matrix(0, nrow = length(ids), ncol = length(ids),  dimnames = list(ids, ids))
+gen_mat[cbind(gendist_raw$Indv1, gendist_raw$Indv2)] <- gendist_raw$GenDisPC12
+gen_mat[cbind(gendist_raw$Indv2, gendist_raw$Indv1)] <- gendist_raw$GenDisPC12
+
+# Reorder to match ordering of myve points
+gen_mat <- gen_mat[myve_coords$Seq_ID, myve_coords$Seq_ID]
+# Double check that ordering is correct
+dimnames(gen_mat)[[1]] == myve_coords$Seq_ID
+dimnames(gen_mat) <- NULL
+
 
 surface <- conductance_surface(covariates, myve_points, directions = 8)
 
-fit_nnls <- radish(melip.Fst ~ forestcover + altitude, surface, 
+fit_nnls <- radish(melip.Fst ~ enm, surface, 
                    radish::loglinear_conductance, radish::leastsquares)
+fit_nnls <- radish(gen_mat ~ enm, surface, 
+                   radish::loglinear_conductance, radish::leastsquares)
+
 summary(fit_nnls)
 
 # refit with with a different measurement model that models
 # dependence among pairwise measurements (radish::mlpe)
 fit_mlpe <- radish(melip.Fst ~ forestcover + altitude, surface, 
                    radish::loglinear_conductance, radish::mlpe)
+fit_mlpe <- radish(gen_mat ~ enm, surface, 
+                   radish::loglinear_conductance, radish::mlpe)
+
 summary(fit_mlpe)
 
 # visualisation:
@@ -180,4 +215,22 @@ plot(enm_conductance)
 enm_resistance <- 1 - (enm_conductance/1000)
 str(enm_resistance)
 writeRaster(enm_resistance, "D:/Github/MYVE_LGA/data/SpatialLayers/ENM_MedianROC_resistance.tif")
+
+# Cropping Flora's layers ###########################################
+cropold <- raster("D:/UM/TXbats/LGA/FloraFiles/cropland_binary_NALCMS_azeq_5km_clip_mask.tif")
+cropdistold <- raster("D:/UM/TXbats/LGA/FloraFiles/Dist2cropland_NALCMS_azeq_5km_clip_mask.tif")
+lights <- raster("D:/UM/TXbats/LGA/FloraFiles/lights_NASA_NnadirCompSnowFree_azeq_5km_clip_mask.tif")
+plot(crop)
+plot(dist2crop)
+plot(lights)
+plot(covariates1[["elevation"]])
+
+crop <- (cropold + covariates1[["elevation"]]) - covariates1[["elevation"]]
+dist2crop <- (cropdistold + covariates1[["elevation"]]) - covariates1[["elevation"]]
+lights <- (lights + covariates1[["elevation"]]) - covariates1[["elevation"]]
+
+writeRaster(crop,"D:/Github/MYVE_LGA/data/cropland_binary_NALCMS_azeq_5km_clip_masked.tif")
+writeRaster(dist2crop,"D:/Github/MYVE_LGA/data/Dist2cropland_NALCMS_azeq_5km_clip_masked.tif")
+writeRaster(lights,"D:/Github/MYVE_LGA/data/lights_NASA_NnadirCompSnowFree_azeq_5km_clip_mask.tif")
+
 
