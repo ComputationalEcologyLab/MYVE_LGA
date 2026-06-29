@@ -14,16 +14,15 @@ usethis::edit_r_makevars()
 data(melip)
 
 setwd("D:/Github/MYVE_LGA/data")
-dir()
+
 env_layers <- list.files("./SpatialLayers", pattern=".tif$")
-plot(raster("D:/Github/MYVE_LGA/data/SpatialLayers/cropland_binary_NALCMS_azeq_5km_clip_masked.tif"))
-crop <- raster("D:/Github/MYVE_LGA/data/SpatialLayers/cropland_binary_NALCMS_azeq_5km_clip_masked.tif")
+
 # scaling spatial covariates helps avoid numeric overflow
 #covariates <- raster::stack(list(altitude = raster::scale(melip.altitude), 
  #                                forestcover = raster::scale(melip.forestcover)))
 
-# Create raster stack
-covariates1-scaled <- raster::stack(list(crop = raster::scale(raster(paste0("./SpatialLayers/",env_layers[1]))),
+# Create raster stack - scaled
+covariates1_scaled <- raster::stack(list(crop = raster::scale(raster(paste0("./SpatialLayers/",env_layers[1]))),
                                  dist2crop = raster::scale(raster(paste0("./SpatialLayers/",env_layers[2]))),
                                  dist2karst = raster::scale(raster(paste0("./SpatialLayers/",env_layers[3]))),
                                  dist2water = raster::scale(raster(paste0("./SpatialLayers/",env_layers[4]))),
@@ -41,6 +40,7 @@ covariates1-scaled <- raster::stack(list(crop = raster::scale(raster(paste0("./S
                                  water = raster::scale(raster(paste0("./SpatialLayers/",env_layers[16])))
                                   ))
 
+# Create raster stack - unscaled
 covariates1 <- raster::stack(list(crop = raster(paste0("./SpatialLayers/",env_layers[1])),
                                   dist2crop = raster(paste0("./SpatialLayers/",env_layers[2])),
                                   dist2karst = raster(paste0("./SpatialLayers/",env_layers[3])),
@@ -59,18 +59,17 @@ covariates1 <- raster::stack(list(crop = raster(paste0("./SpatialLayers/",env_la
                                   water = raster(paste0("./SpatialLayers/",env_layers[16]))
 ))
 # Have identical NoData mask on all layers
-na_mask <- sum(covariates1)
+na_mask <- sum(covariates1_scaled)
 covariates1 <- raster::mask(covariates1, na_mask)
 
 # Write raster stack to disk
-writeRaster(covariates1, filename = "covariates_stack.grd")
+writeRaster(covariates1, filename = "covariates_stack_rescaled.grd")
 # Read in raster stack from disk, shouldn't need individual layers above
-covariates <- stack("D:/Github/MYVE_LGA/data/covariates_stack.grd")
+covariates <- stack("D:/Github/MYVE_LGA/data/covariates_stack_rescaled.grd")
 names(covariates)
 
-
 ################ Spatial coordinates ###############
-myve_coords <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVECoordinates.csv"))
+myve_coords <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVECoordinates_nobaja.csv"))
 head(myve_coords)
 myve_points <- SpatialPoints(myve_coords[,2:3])
 
@@ -89,11 +88,11 @@ gen_mat <- gen_mat[myve_coords$Seq_ID, myve_coords$Seq_ID]
 # Double check that ordering is correct
 dimnames(gen_mat)[[1]] == myve_coords$Seq_ID
 dimnames(gen_mat) <- NULL
-
+dimnames(gen_mat)[[1]][order(dimnames(gen_mat)[[1]])]
 
 surface <- conductance_surface(covariates, myve_points, directions = 8)
 
-fit_nnls <- radish(melip.Fst ~ enm, surface, 
+fit_nnls_nate <- radish(melip.Fst ~ forestcover + altitude, surface, 
                    radish::loglinear_conductance, radish::leastsquares)
 fit_nnls <- radish(gen_mat ~ enm, surface, 
                    radish::loglinear_conductance, radish::leastsquares)
@@ -102,22 +101,22 @@ summary(fit_nnls)
 
 # refit with with a different measurement model that models
 # dependence among pairwise measurements (radish::mlpe)
-fit_mlpe <- radish(melip.Fst ~ forestcover + altitude, surface, 
+fit_mlpe_nate <- radish(melip.Fst ~ forestcover + altitude, surface, 
                    radish::loglinear_conductance, radish::mlpe)
 fit_mlpe <- radish(gen_mat ~ enm, surface, 
-                   radish::loglinear_conductance, radish::mlpe)
+                   radish::loglinear_conductance, radish::mlpe) # 5-10 minutes
 
 summary(fit_mlpe)
 
 # visualisation:
-plot(fitted(fit_mlpe, "distance"), melip.Fst, pch = 19,
-     xlab = "Optimized resistance distance", ylab = "Fst")
+plot(fitted(fit_mlpe, "distance"), gen_mat, pch = 19,
+     xlab = "Optimized resistance distance", ylab = "Genetic distance")
 
 # visualise estimated conductance surface and asymptotic confidence intervals
 fitted_conductance <- conductance(surface, fit_mlpe, quantile = 0.95)
 
 plot(fitted_conductance[["est"]], 
-     main = "Fitted conductance surface\n(forestcover + altitude)")
+     main = "Fitted conductance surface\n(enm)")
 plot(fitted_conductance[["lower95"]], 
      main = "Fitted conductance surface\n(lower 95% CI)")
 plot(fitted_conductance[["upper95"]], main = 
@@ -126,8 +125,11 @@ plot(fitted_conductance[["upper95"]], main =
 # visualise likelihood surface across grid (takes awhile)
 theta <- as.matrix(expand.grid(forestcover=seq(-1,1,length.out=21), 
                                altitude=seq(-1,1,length.out=21)))
+theta <- as.matrix(expand.grid(enm=seq(-1,1,length.out=21)))
 grid <- radish_grid(theta, melip.Fst ~ forestcover + altitude, surface,
                     radish::loglinear_conductance, radish::mlpe)
+grid <- radish_grid(theta, gen_mat ~ enm, surface,
+                    radish::loglinear_conductance, radish::mlpe) #(5-10 minutes)
 
 library(ggplot2)
 ggplot(data.frame(loglik=grid$loglik, grid$theta), 
@@ -137,6 +139,14 @@ ggplot(data.frame(loglik=grid$loglik, grid$theta),
   annotate(geom = "point", colour = "red",
            x = coef(fit_mlpe)["forestcover"], 
            y = coef(fit_mlpe)["altitude"]) +
+  theme_bw() +
+  xlab(expression(theta[altitude])) +
+  ylab(expression(theta[forestcover]))
+
+ggplot(data.frame(loglik=grid$loglik, grid$theta), 
+       aes(x=enm)) + 
+  geom_tile(aes(fill=loglik)) + 
+  geom_contour(aes(z=loglik), color="black") +
   theme_bw() +
   xlab(expression(theta[altitude])) +
   ylab(expression(theta[forestcover]))
@@ -232,5 +242,33 @@ lights <- (lights + covariates1[["elevation"]]) - covariates1[["elevation"]]
 writeRaster(crop,"D:/Github/MYVE_LGA/data/cropland_binary_NALCMS_azeq_5km_clip_masked.tif")
 writeRaster(dist2crop,"D:/Github/MYVE_LGA/data/Dist2cropland_NALCMS_azeq_5km_clip_masked.tif")
 writeRaster(lights,"D:/Github/MYVE_LGA/data/lights_NASA_NnadirCompSnowFree_azeq_5km_clip_mask.tif")
+
+
+########################### Candidate modes and testing runtimes
+
+start_time <- Sys.time()
+fit_mlpe1 <- radish(gen_mat ~ enm + TRI + ghfp1, surface, 
+                   radish::loglinear_conductance, radish::mlpe) # 
+end_time <- Sys.time()
+print(end_time - start_time)
+
+start_time <- Sys.time()
+fit_mlpe1 <- radish(gen_mat ~ enm + dist2karst + TRI + ghfp1 + crop + dist2water, surface, 
+                    radish::loglinear_conductance, radish::leastsquares) # 
+end_time <- Sys.time()
+print(end_time - start_time)
+
+start_time <- Sys.time()
+fit_mlpe1 <- radish(gen_mat ~ enm + dist2karst + TRI + ghfp1 + crop + dist2water, surface, 
+                    radish::loglinear_conductance, radish::generalized_wishart) # 
+end_time <- Sys.time()
+print(end_time - start_time)
+
+# Loop through mlpe version of all univariate models, compare with aic
+uni_models <- list()
+for(idx in 1:length(surface$covariates)){
+  uni_models[idx] <- radish(reformulate(surface$covariates[idx], response = "gen_mat"), surface, 
+                      radish::loglinear_conductance, radish::mlpe)
+}
 
 

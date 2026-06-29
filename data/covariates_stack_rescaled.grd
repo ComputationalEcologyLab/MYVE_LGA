@@ -1,0 +1,26 @@
+[general]
+creator=R package 'raster'
+created=2026-06-19 17:34:15
+[data]
+datatype=FLT4S
+byteorder=little
+nbands=16
+bandorder=BIL
+minvalue=0:0.208601161837578:0:0:-85:0.0790000036358833:0:0:0:4:0:0:0:-2.40692615509033:0:0
+maxvalue=0.998258829116821:103418.5390625:352496.1875:81113.7734375:5155.58740234375:0.99099999666214:1:100.018707275391:46:64907:1:5.28980159759521:0.945709705352783:2.08217096328735:37.3300094604492:1
+nodatavalue=-3.4e+38
+[legend]
+legendtype=
+values=
+color=
+[description]
+layername=crop:dist2crop:dist2karst:dist2water:elevation:enm:forest:forest_gcam:ghfp1:ghpf2:karst:lights:slope:TPI:TRI:water
+[georeference]
+nrows=579
+ncols=741
+xmin=-2217695.16358461
+ymin=-1946807.74135402
+xmax=1487304.83641539
+ymax=948192.258645978
+projection=+proj=aeqd +lat_0=32 +lon_0=-100 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs
+wkt=PROJCRS["unknown",    BASEGEOGCRS["unknown",        DATUM["World Geodetic System 1984",            ELLIPSOID["WGS 84",6378137,298.257223563,                LENGTHUNIT["metre",1]],            ID["EPSG",6326]],        PRIMEM["Greenwich",0,            ANGLEUNIT["degree",0.0174532925199433],            ID["EPSG",8901]]],    CONVERSION["unknown",        METHOD["Azimuthal Equidistant",            ID["EPSG",1125]],        PARAMETER["Latitude of natural origin",32,            ANGLEUNIT["degree",0.0174532925199433],            ID["EPSG",8801]],        PARAMETER["Longitude of natural origin",-100,            ANGLEUNIT["degree",0.0174532925199433],            ID["EPSG",8802]],        PARAMETER["False easting",0,            LENGTHUNIT["metre",1],            ID["EPSG",8806]],        PARAMETER["False northing",0,            LENGTHUNIT["metre",1],            ID["EPSG",8807]]],    CS[Cartesian,2],        AXIS["(E)",east,            ORDER[1],            LENGTHUNIT["metre",1,                ID["EPSG",9001]]],        AXIS["(N)",north,            ORDER[2],            LENGTHUNIT["metre",1,                ID["EPSG",9001]]]]
