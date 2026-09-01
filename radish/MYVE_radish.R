@@ -63,7 +63,8 @@ na_mask <- sum(covariates1_scaled)
 covariates1 <- raster::mask(covariates1, na_mask)
 
 # Write raster stack to disk
-writeRaster(covariates1, filename = "covariates_stack_rescaled.grd")
+writeRaster(covariates1_scaled, filename = "covariates_stack_rescaled.grd", overwrite=TRUE)
+writeRaster(covariates1, filename = "covariates_stack_raw.grd", overwrite=TRUE)
 # Read in raster stack from disk, shouldn't need individual layers above
 covariates <- stack("D:/Github/MYVE_LGA/data/covariates_stack_rescaled.grd")
 names(covariates)
@@ -78,6 +79,7 @@ points(myve_points, pch = 19)
 
 ################# Genetic distance convert to matrix
 gendist_raw <- read.csv("D:/Github/MYVE_LGA/data/GeneticDist.csv")
+gendist_raw$GenDisPC12 <- (gendist_raw$GenDisPC12 - min(gendist_raw$GenDisPC12, na.rm=TRUE)) / (max(gendist_raw$GenDisPC12,na.rm=TRUE - min(gendist_raw$GenDisPC12, na.rm=TRUE)))
 ids <- sort(unique(c(gendist_raw$Indv1, gendist_raw$Indv2)))
 gen_mat <- matrix(0, nrow = length(ids), ncol = length(ids),  dimnames = list(ids, ids))
 gen_mat[cbind(gendist_raw$Indv1, gendist_raw$Indv2)] <- gendist_raw$GenDisPC12
@@ -91,6 +93,7 @@ dimnames(gen_mat) <- NULL
 dimnames(gen_mat)[[1]][order(dimnames(gen_mat)[[1]])]
 
 surface <- conductance_surface(covariates, myve_points, directions = 8)
+surface_crop <- conductance_surface(stack(covariates[[1]]), myve_points, directions = 8)
 
 fit_nnls_nate <- radish(melip.Fst ~ forestcover + altitude, surface, 
                    radish::loglinear_conductance, radish::leastsquares)
@@ -103,6 +106,7 @@ summary(fit_nnls)
 # dependence among pairwise measurements (radish::mlpe)
 fit_mlpe_nate <- radish(melip.Fst ~ forestcover + altitude, surface, 
                    radish::loglinear_conductance, radish::mlpe)
+
 fit_mlpe <- radish(gen_mat ~ enm, surface, 
                    radish::loglinear_conductance, radish::mlpe) # 5-10 minutes
 
@@ -264,11 +268,232 @@ fit_mlpe1 <- radish(gen_mat ~ enm + dist2karst + TRI + ghfp1 + crop + dist2water
 end_time <- Sys.time()
 print(end_time - start_time)
 
+# IBD model
+
+IBD <- radish(gen_mat ~ 1, surface, radish::loglinear_conductance, radish::mlpe)
+IBD <- radish(gen_mat ~ 1, surface, radish::loglinear_conductance, radish::generalized_wishart, nu=1000)
+
+ibd_aov <- anova(IBD, uni_models[[1]])
+anova(IBD, uni_models[[16]])
+
 # Loop through mlpe version of all univariate models, compare with aic
 uni_models <- list()
 for(idx in 1:length(surface$covariates)){
-  uni_models[idx] <- radish(reformulate(surface$covariates[idx], response = "gen_mat"), surface, 
+  uni_models[[idx]] <- radish(reformulate(surface$covariates[idx], response = "gen_mat"), surface, 
                       radish::loglinear_conductance, radish::mlpe)
 }
+
+sumtest <- summary(uni_models[[1]])
+
+TRI <- radish(reformulate(surface$covariates[15], response = "gen_mat"), surface, 
+                            radish::loglinear_conductance, radish::mlpe)
+crop <- radish(reformulate(surface_crop$covariates[[1]], response = "gen_mat"), surface_crop, 
+                            radish::loglinear_conductance, radish::generalized_wishart, nu=1000)
+
+ones <- radish(reformulate(surface$covariates[[17]], response = "gen_mat"), surface, 
+               radish::loglinear_conductance, radish::mlpe)
+
+anova(IBD, crop)
+anova(IBD, uni_models[[1]])
+
+for(idx in 1:length(uni_models)){
+print(uni_models[[idx]])
+}
+
+mlpe_models[2]$aic
+model_aics <- vector()
+model_lglk <- vector()
+model_gradnorm <- vector()
+model_coef <- vector()
+model_ste <- vector()
+model_zval <- vector()
+model_pval <- vector()
+model_alpha <- vector()
+model_beta <- vector()
+model_tau <- vector()
+model_rho <- vector()
+model_iters <- vector()
+testsum <- summary(uni_models[[1]])
+summary(uni_models[[14]])
+
+
+for(idx in 1:length(uni_models)){
+  model_aics[idx] <- summary(uni_models[[idx]])$aic
+  model_lglk[idx] <- summary(uni_models[[idx]])$loglik
+  model_gradnorm[idx] <- summary(uni_models[[idx]])$gradnorm
+  model_coef[idx] <- summary(uni_models[[idx]])$ztable[1]
+  model_ste[idx] <- summary(uni_models[[idx]])$ztable[2]
+  model_zval[idx] <- summary(uni_models[[idx]])$ztable[3]
+  model_pval[idx] <- summary(uni_models[[idx]])$ztable[4]
+  model_alpha[idx] <- summary(uni_models[[idx]])$phi[1]
+  model_beta[idx] <- summary(uni_models[[idx]])$phi[2]
+  model_tau[idx] <- summary(uni_models[[idx]])$phi[3]
+  model_rho[idx] <- summary(uni_models[[idx]])$phi[4]
+  model_iters[idx] <- summary(uni_models[[idx]])$iters
+}
+
+
+models_out <- data.frame(vars = names(covariates), aic = model_aics, loglike = model_lglk, gradnorm = model_gradnorm,
+                         coefficient = model_coef, sterror = model_ste, zval = model_zval, pval = model_pval,
+                         alpha = model_alpha, beta = model_beta, tau = model_tau, rho = model_rho, iterations = model_iters)
+write.csv(models_out, "D:/UM/TXbats/LGA/Radish_univariate_models_out4.csv")
+
+
+covariates_round2 <- raster::stack(list(dist2karst = raster::scale(raster(paste0("./SpatialLayers/",env_layers[3]))),
+                                        crop = raster::scale(raster(paste0("./SpatialLayers/",env_layers[1]))),
+                                         dist2water = raster::scale(raster(paste0("./SpatialLayers/",env_layers[4]))),
+                                         elevation = raster::scale(raster(paste0("./SpatialLayers/",env_layers[5]))),
+                                         enm = raster::scale(raster(paste0("./SpatialLayers/",env_layers[6]))),
+                                         forest = raster::scale(raster(paste0("./SpatialLayers/",env_layers[7]))),
+                                         ghfp1 = raster::scale(raster(paste0("./SpatialLayers/",env_layers[9])))
+                                        ))
+# Have identical NoData mask on all layers
+na_mask <- sum(covariates_round2)
+covariates_round2 <- raster::mask(covariates_round2, na_mask)
+writeRaster(covariates_round2, filename = "covariates_stack_round2.grd", overwrite=TRUE)
+
+# Read in raster stack from disk, shouldn't need individual layers above
+covariates_round2 <- stack("D:/Github/MYVE_LGA/data/covariates_stack_round2.grd")
+# Now taking best model (TRI) and running each two-variable model
+twovar_models <- list()
+surface_round2 <- conductance_surface(covariates_round2, myve_points, directions = 8)
+covariates_round2 <- stack(list(covariates[[3]],covariates[[1]],covariates[[4]],covariates[[5]],
+                           covariates[[6]],covariates[[7]],covariates[[9]]))
+covariates_round2 <- stack(list(dist2karst=covariates[[3]],crop=covariates[[1]],dist2water=covariates[[4]],elevation=covariates[[5]],
+                                enm=covariates[[6]],forest=covariates[[7]],ghfp1=covariates[[9]]))
+covariates_round2 <- covariates[[c(3,1,4,5,6,7,9)]]
+for(idx in 1:(length(surface_round2$covariates)-1)){
+  twovar_models[[idx]] <- radish(reformulate(termlabels = c(surface_round2$covariates[1],surface_round2$covariates[idx+1]), response = "gen_mat"), surface_round2, 
+                              radish::loglinear_conductance, radish::mlpe)
+  }
+
+
+for(idx in 1:length(twovar_models)){
+  model_aics[idx] <- summary(twovar_models[[idx]])$aic
+  model_lglk[idx] <- summary(twovar_models[[idx]])$loglik
+  model_gradnorm[idx] <- summary(twovar_models[[idx]])$gradnorm
+  model_coef[idx] <- summary(twovar_models[[idx]])$ztable[1]
+  model_ste[idx] <- summary(twovar_models[[idx]])$ztable[2]
+  model_zval[idx] <- summary(twovar_models[[idx]])$ztable[3]
+  model_pval[idx] <- summary(twovar_models[[idx]])$ztable[4]
+  model_alpha[idx] <- summary(twovar_models[[idx]])$phi[1]
+  model_beta[idx] <- summary(twovar_models[[idx]])$phi[2]
+  model_tau[idx] <- summary(twovar_models[[idx]])$phi[3]
+  model_rho[idx] <- summary(twovar_models[[idx]])$phi[4]
+  model_iters[idx] <- summary(twovar_models[[idx]])$iters
+}
+
+models_out <- data.frame(aic = model_aics, loglike = model_lglk, gradnorm = model_gradnorm,
+                         coefficient = model_coef, sterror = model_ste, zval = model_zval, pval = model_pval,
+                         alpha = model_alpha, beta = model_beta, tau = model_tau, rho = model_rho, iterations = model_iters)
+write.csv(models_out, "D:/UM/TXbats/LGA/Radish_twovariate_models_out.csv")
+
+
+# Three variable models
+covariates_round3 <- raster::stack(list(dist2karst = raster::scale(raster(paste0("./SpatialLayers/",env_layers[3]))),
+                                        enm = raster::scale(raster(paste0("./SpatialLayers/",env_layers[6]))),
+                                        crop = raster::scale(raster(paste0("./SpatialLayers/",env_layers[1]))),
+                                        dist2water = raster::scale(raster(paste0("./SpatialLayers/",env_layers[4]))),
+                                        elevation = raster::scale(raster(paste0("./SpatialLayers/",env_layers[5]))),
+                                        forest = raster::scale(raster(paste0("./SpatialLayers/",env_layers[7]))),
+                                        ghfp1 = raster::scale(raster(paste0("./SpatialLayers/",env_layers[9])))
+))
+# Have identical NoData mask on all layers
+na_mask <- sum(covariates_round3)
+covariates_round3 <- raster::mask(covariates_round3, na_mask)
+writeRaster(covariates_round3, filename = "covariates_stack_round3.grd", overwrite=TRUE)
+
+# Read in raster stack from disk, shouldn't need individual layers above
+covariates_round3 <- stack("D:/Github/MYVE_LGA/data/covariates_stack_round3.grd")
+# Now taking best model (TRI) and running each two-variable model
+threevar_models <- list()
+surface_round3 <- conductance_surface(covariates_round3, myve_points, directions = 8)
+
+for(idx in 1:(length(surface_round3$covariates)-2)){
+  threevar_models[[idx]] <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[idx+2]), response = "gen_mat"), surface_round3, 
+                                 radish::loglinear_conductance, radish::mlpe)
+}
+
+
+for(idx in 1:length(threevar_models)){
+  model_aics[idx] <- summary(threevar_models[[idx]])$aic
+  model_lglk[idx] <- summary(threevar_models[[idx]])$loglik
+  model_gradnorm[idx] <- summary(threevar_models[[idx]])$gradnorm
+  model_coef[idx] <- summary(threevar_models[[idx]])$ztable[1]
+  model_ste[idx] <- summary(threevar_models[[idx]])$ztable[2]
+  model_zval[idx] <- summary(threevar_models[[idx]])$ztable[3]
+  model_pval[idx] <- summary(threevar_models[[idx]])$ztable[4]
+  model_alpha[idx] <- summary(threevar_models[[idx]])$phi[1]
+  model_beta[idx] <- summary(threevar_models[[idx]])$phi[2]
+  model_tau[idx] <- summary(threevar_models[[idx]])$phi[3]
+  model_rho[idx] <- summary(threevar_models[[idx]])$phi[4]
+  model_iters[idx] <- summary(threevar_models[[idx]])$iters
+}
+
+models_out <- data.frame(aic = model_aics, loglike = model_lglk, gradnorm = model_gradnorm,
+                         coefficient = model_coef, sterror = model_ste, zval = model_zval, pval = model_pval,
+                         alpha = model_alpha, beta = model_beta, tau = model_tau, rho = model_rho, iterations = model_iters)
+write.csv(models_out, "D:/UM/TXbats/LGA/Radish_threevariate_models_out.csv")
+summary(threevar_models[[1]])
+
+# Four variable models
+threeplusWater <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[3],surface_round3$covariates[4]), response = "gen_mat"), surface_round3, 
+                                               radish::loglinear_conductance, radish::mlpe)
+threepluselevation <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[3],surface_round3$covariates[5]), response = "gen_mat"), surface_round3, 
+                         radish::loglinear_conductance, radish::mlpe)
+threeplusforest <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[3],surface_round3$covariates[6]), response = "gen_mat"), surface_round3, 
+                         radish::loglinear_conductance, radish::mlpe)
+threeplusghfp <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[3],surface_round3$covariates[7]), response = "gen_mat"), surface_round3, 
+                         radish::loglinear_conductance, radish::mlpe)
+
+summary(threeplusWater) #AIC -25073
+summary(threepluselevation) #AIC -25043
+summary(threeplusforest) #AIC -25202
+summary(threeplusghfp) #AIC -25124
+
+# Five variable models
+fourplusWater <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[3],
+                                                    surface_round3$covariates[6], surface_round3$covariates[4]),response = "gen_mat"), surface_round3, 
+                         radish::loglinear_conductance, radish::mlpe)
+fourpluselevation <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[3],
+                                                       surface_round3$covariates[6], surface_round3$covariates[5]),response = "gen_mat"), surface_round3, 
+                             radish::loglinear_conductance, radish::mlpe)
+fourplusghfp <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[3],
+                                                  surface_round3$covariates[6], surface_round3$covariates[7]),response = "gen_mat"), surface_round3, 
+                          radish::loglinear_conductance, radish::mlpe)
+
+summary(fourplusWater) #AIC -25218
+summary(fourpluselevation) #AIC -25200
+summary(fourplusghfp) #AIC -25208
+
+
+fivepluselevation <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[3],
+                                                       surface_round3$covariates[6], surface_round3$covariates[4],surface_round3$covariates[5]),response = "gen_mat"), surface_round3, 
+                            radish::loglinear_conductance, radish::mlpe)
+fiveplusghfp <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[3],
+                                                  surface_round3$covariates[6], surface_round3$covariates[4],surface_round3$covariates[7]),response = "gen_mat"), surface_round3, 
+                       radish::loglinear_conductance, radish::mlpe)
+
+
+
+
+
+
+
+########################## ResistanceGA testing ############################
+
+library(devtools)
+devtools::install_github("wpeterman/ResistanceGA2", build_vignettes = TRUE)
+
+library(ResistanceGA2)
+
+
+
+
+
+
+
+
+
 
 
