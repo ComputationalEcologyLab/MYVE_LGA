@@ -280,7 +280,7 @@ anova(IBD, uni_models[[16]])
 uni_models <- list()
 for(idx in 1:length(surface$covariates)){
   uni_models[[idx]] <- radish(reformulate(surface$covariates[idx], response = "gen_mat"), surface, 
-                      radish::loglinear_conductance, radish::mlpe)
+                      radish::loglinear_conductance, radish::mlpe, nu=105)
 }
 
 sumtest <- summary(uni_models[[1]])
@@ -475,9 +475,11 @@ fiveplusghfp <- radish(reformulate(termlabels = c(surface_round3$covariates[1],s
                        radish::loglinear_conductance, radish::mlpe)
 
 
+allvars <- fiveplusghfp <- radish(reformulate(termlabels = c(surface_round3$covariates[1],surface_round3$covariates[2],surface_round3$covariates[3],
+                                                             surface_round3$covariates[6], surface_round3$covariates[4],surface_round3$covariates[5],surface_round3$covariates[7]),response = "gen_mat"), surface_round3, 
+                                  radish::loglinear_conductance, radish::mlpe)
 
-
-
+summary(allvars)
 
 
 ########################## ResistanceGA testing ############################
@@ -486,14 +488,77 @@ library(devtools)
 devtools::install_github("wpeterman/ResistanceGA2", build_vignettes = TRUE)
 
 library(ResistanceGA2)
+library(terra)
+
+setwd("D:/Github/MYVE_LGA/data")
+covariates <- stack("D:/Github/MYVE_LGA/data/covariates_stack_rescaled.grd")
+myve_coords <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVECoordinates_nobaja.csv"))
+head(myve_coords)
+myve_points <- SpatialPoints(myve_coords[,2:3])
+
+################# Genetic distance convert to matrix
+gendist_raw <- read.csv("D:/Github/MYVE_LGA/data/GeneticDist.csv")
+gendist_raw$GenDisPC12 <- (gendist_raw$GenDisPC12 - min(gendist_raw$GenDisPC12, na.rm=TRUE)) / (max(gendist_raw$GenDisPC12,na.rm=TRUE - min(gendist_raw$GenDisPC12, na.rm=TRUE)))
+ids <- sort(unique(c(gendist_raw$Indv1, gendist_raw$Indv2)))
+gen_mat <- matrix(0, nrow = length(ids), ncol = length(ids),  dimnames = list(ids, ids))
+gen_mat[cbind(gendist_raw$Indv1, gendist_raw$Indv2)] <- gendist_raw$GenDisPC12
+gen_mat[cbind(gendist_raw$Indv2, gendist_raw$Indv1)] <- gendist_raw$GenDisPC12
+
+# Reorder to match ordering of myve points
+gen_mat <- gen_mat[myve_coords$Seq_ID, myve_coords$Seq_ID]
+
+# Package data
+surfaces  <- terra::rast(covariates)          # 3-layer SpatRaster (unwrapped automatically)
+pts <- vect(myve_points)
+
+# 1. Configure the GA
+ga_inputs <- GA.prep(
+  raster      = surfaces,
+  #Results.dir = file.path(tempdir(), "ResistanceGA2-demo"),
+  method      = "LL",
+  monitor     = FALSE,
+  quiet       = TRUE
+)
+
+# 2. Prepare distance engine (gdistance, no external software needed)
+gdist_inputs <- gdist.prep(
+  n.Pops  = nrow(pts),
+  response = lower(gen_mat),
+  samples = pts,
+  method  = "costDistance"
+)
+
+# 2.5 prep Julia call
+jl_inputs <- jl.prep(
+  n.Pops  = nrow(pts),
+  response = lower(gen_mat),
+  CS_Point.File = pts,
+  JULIA_HOME = "C:\\Users\\cday4\\.julia\\juliaup\\julia-1.12.7+0.x64.w64.mingw32\\bin"
+)
+
+
+# 3. Optimize single surfaces
+ss_out <- SS_optim(
+  #gdist.inputs     = gdist_inputs,
+  jl.inputs     = jl_inputs,
+  GA.inputs        = ga_inputs,
+  dist_mod         = TRUE,
+  null_mod         = TRUE,
+  diagnostic_plots = FALSE
+)
+
+# 4. Examine results
+summary(ss_out)
+plot(ss_out)
+ss_out$AICc
+ss_out$ContinuousResults
 
 
 
 
 
 
-
-
-
-
+getOption("JULIA_HOME")
+Sys.getenv("JULIA_HOME")
+Sys.which("julia")
 
