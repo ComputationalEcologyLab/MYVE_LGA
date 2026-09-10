@@ -73,6 +73,10 @@ names(covariates)
 myve_coords <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVECoordinates_nobaja.csv"))
 head(myve_coords)
 myve_points <- SpatialPoints(myve_coords[,2:3])
+myve_coords_north <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVE_LGA/Indv_based_metrics/20260625_neutralFiltAutoMYVE_19firstocs_northerners_coordinates.csv"))
+myve_coords_south <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVE_LGA/Indv_based_metrics/20260605_neutralFiltAutoMYVE_87firstlocs_southerners_coordinates_nobaja.csv"))
+myve_points_north <- SpatialPoints(myve_coords_north[,2:3])
+myve_points_south <- SpatialPoints(myve_coords_south[,2:3])
 
 plot(covariates[["enm"]])
 points(myve_points, pch = 19)
@@ -91,6 +95,27 @@ gen_mat <- gen_mat[myve_coords$Seq_ID, myve_coords$Seq_ID]
 dimnames(gen_mat)[[1]] == myve_coords$Seq_ID
 dimnames(gen_mat) <- NULL
 dimnames(gen_mat)[[1]][order(dimnames(gen_mat)[[1]])]
+
+gendist_raw_north <- read.csv("D:/Github/MYVE_LGA/data/MYVE_LGA/Indv_based_metrics/20260625_neutralFiltAutoMYVE_19firstlocs_northernersPC1-2_relatedness.csv")
+gendist_raw_north$GenDisPC12 <- (gendist_raw_north$GenDisPC12 - min(gendist_raw_north$GenDisPC12, na.rm=TRUE)) / (max(gendist_raw_north$GenDisPC12,na.rm=TRUE - min(gendist_raw_north$GenDisPC12, na.rm=TRUE)))
+ids_north <- sort(unique(c(gendist_raw_north$Indv1, gendist_raw_north$Indv2)))
+gen_mat_north <- matrix(0, nrow = length(ids_north), ncol = length(ids_north),  dimnames = list(ids_north, ids_north))
+gen_mat_north[cbind(gendist_raw_north$Indv1, gendist_raw_north$Indv2)] <- gendist_raw_north$GenDisPC12
+gen_mat_north[cbind(gendist_raw_north$Indv2, gendist_raw_north$Indv1)] <- gendist_raw_north$GenDisPC12
+
+# Reorder to match ordering of myve points
+gen_mat_north <- gen_mat_north[myve_coords_north$Seq_ID, myve_coords_north$Seq_ID]
+
+gendist_raw_south <- read.csv("D:/Github/MYVE_LGA/data//MYVE_LGA/Indv_based_metrics/20260521_neutralFiltAutoMYVE_87firstlocs_southerners_PC1-2_relatedness.csv")
+gendist_raw_south$GenDisPC12 <- (gendist_raw_south$GenDisPC12 - min(gendist_raw_south$GenDisPC12, na.rm=TRUE)) / (max(gendist_raw_south$GenDisPC12,na.rm=TRUE - min(gendist_raw_south$GenDisPC12, na.rm=TRUE)))
+ids_south <- sort(unique(c(gendist_raw_south$Indv1, gendist_raw_south$Indv2)))
+gen_mat_south <- matrix(0, nrow = length(ids_south), ncol = length(ids_south),  dimnames = list(ids_south, ids_south))
+gen_mat_south[cbind(gendist_raw_south$Indv1, gendist_raw_south$Indv2)] <- gendist_raw_south$GenDisPC12
+gen_mat_south[cbind(gendist_raw_south$Indv2, gendist_raw_south$Indv1)] <- gendist_raw_south$GenDisPC12
+
+# Reorder to match ordering of myve points
+gen_mat_south <- gen_mat_south[myve_coords_south$Seq_ID, myve_coords_south$Seq_ID]
+
 
 surface <- conductance_surface(covariates, myve_points, directions = 8)
 surface_crop <- conductance_surface(stack(covariates[[1]]), myve_points, directions = 8)
@@ -489,12 +514,22 @@ devtools::install_github("wpeterman/ResistanceGA2", build_vignettes = TRUE)
 
 library(ResistanceGA2)
 library(terra)
+library(raster)
 
 setwd("D:/Github/MYVE_LGA/data")
 covariates <- stack("D:/Github/MYVE_LGA/data/covariates_stack_rescaled.grd")
 myve_coords <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVECoordinates_nobaja.csv"))
 head(myve_coords)
 myve_points <- SpatialPoints(myve_coords[,2:3])
+
+myve_coords_north <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVE_LGA/Indv_based_metrics/20260625_neutralFiltAutoMYVE_19firstocs_northerners_coordinates.csv"))
+myve_coords_south <- as.data.frame(read.csv("D:/Github/MYVE_LGA/data/MYVE_LGA/Indv_based_metrics/20260605_neutralFiltAutoMYVE_87firstlocs_southerners_coordinates_nobaja.csv"))
+myve_points_north <- SpatialPoints(myve_coords_north[,2:3])
+myve_points_south <- SpatialPoints(myve_coords_south[,2:3])
+plot(covariates[[3]])
+points(myve_points_north, col = "blue")
+points(myve_points_south, col = "green")
+
 
 ################# Genetic distance convert to matrix
 gendist_raw <- read.csv("D:/Github/MYVE_LGA/data/GeneticDist.csv")
@@ -503,9 +538,28 @@ ids <- sort(unique(c(gendist_raw$Indv1, gendist_raw$Indv2)))
 gen_mat <- matrix(0, nrow = length(ids), ncol = length(ids),  dimnames = list(ids, ids))
 gen_mat[cbind(gendist_raw$Indv1, gendist_raw$Indv2)] <- gendist_raw$GenDisPC12
 gen_mat[cbind(gendist_raw$Indv2, gendist_raw$Indv1)] <- gendist_raw$GenDisPC12
-
 # Reorder to match ordering of myve points
 gen_mat <- gen_mat[myve_coords$Seq_ID, myve_coords$Seq_ID]
+
+gendist_raw_north <- read.csv("D:/Github/MYVE_LGA/data/MYVE_LGA/Indv_based_metrics/20260625_neutralFiltAutoMYVE_19firstlocs_northernersPC1-2_relatedness.csv")
+gendist_raw_north$GenDisPC12 <- (gendist_raw_north$GenDisPC12 - min(gendist_raw_north$GenDisPC12, na.rm=TRUE)) / (max(gendist_raw_north$GenDisPC12,na.rm=TRUE - min(gendist_raw_north$GenDisPC12, na.rm=TRUE)))
+ids_north <- sort(unique(c(gendist_raw_north$Indv1, gendist_raw_north$Indv2)))
+gen_mat_north <- matrix(0, nrow = length(ids_north), ncol = length(ids_north),  dimnames = list(ids_north, ids_north))
+gen_mat_north[cbind(gendist_raw_north$Indv1, gendist_raw_north$Indv2)] <- gendist_raw_north$GenDisPC12
+gen_mat_north[cbind(gendist_raw_north$Indv2, gendist_raw_north$Indv1)] <- gendist_raw_north$GenDisPC12
+
+# Reorder to match ordering of myve points
+gen_mat_north <- gen_mat_north[myve_coords_north$Seq_ID, myve_coords_north$Seq_ID]
+
+gendist_raw_south <- read.csv("D:/Github/MYVE_LGA/data//MYVE_LGA/Indv_based_metrics/20260521_neutralFiltAutoMYVE_87firstlocs_southerners_PC1-2_relatedness.csv")
+gendist_raw_south$GenDisPC12 <- (gendist_raw_south$GenDisPC12 - min(gendist_raw_south$GenDisPC12, na.rm=TRUE)) / (max(gendist_raw_south$GenDisPC12,na.rm=TRUE - min(gendist_raw_south$GenDisPC12, na.rm=TRUE)))
+ids_south <- sort(unique(c(gendist_raw_south$Indv1, gendist_raw_south$Indv2)))
+gen_mat_south <- matrix(0, nrow = length(ids_south), ncol = length(ids_south),  dimnames = list(ids_south, ids_south))
+gen_mat_south[cbind(gendist_raw_south$Indv1, gendist_raw_south$Indv2)] <- gendist_raw_south$GenDisPC12
+gen_mat_south[cbind(gendist_raw_south$Indv2, gendist_raw_south$Indv1)] <- gendist_raw_south$GenDisPC12
+
+# Reorder to match ordering of myve points
+gen_mat_south <- gen_mat_south[myve_coords_south$Seq_ID, myve_coords_south$Seq_ID]
 
 # Package data
 surfaces  <- terra::rast(covariates)          # 3-layer SpatRaster (unwrapped automatically)
