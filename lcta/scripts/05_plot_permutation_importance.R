@@ -109,7 +109,7 @@ saveRDS(importance, "lcta/results/permutation_importance.rds")
 ## ----------------------------------------------------------------------
 plot_data <- importance %>%
   dplyr::mutate(label = forcats::fct_reorder(label, mean_pct)) %>% 
-  dplyr::mutate(effect_move = dplyr::if_else(variable %in% c("euc_geog", "crop", "elev"),
+  dplyr::mutate(effect_move = dplyr::if_else(variable %in% c("euc_geog", "crop_binary", "elev"),
                                             "Inhibited movement", "Facilitated movement"))
 
 p <- ggplot2::ggplot(plot_data, ggplot2::aes(y = label, x = mean_pct, color = effect_move,
