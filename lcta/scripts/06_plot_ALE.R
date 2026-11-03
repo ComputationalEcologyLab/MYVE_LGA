@@ -70,8 +70,11 @@ boot_it <- function(model, call, dist) {
 ## Best LCP iteration (1:5) by pooled RMSE
 ## ----------------------------------------------------------------------
 source("lcta/scripts/cv_diagnostics.R")
+## If running with a subset of variables (excluding karst vars and eco_niche)
+## If not, comment this line out
+source("lcta/scripts/run_config.R")
 
-model_dir   <- "lcta/models/"
+model_dir <- paste0("lcta/models/", run_suffix)
 
 find_best_iteration <- function(model_dir) {
   files <- list.files(model_dir, pattern = "^lcp_[1-9][0-9]*\\.rds$", full.names = TRUE)
@@ -117,6 +120,8 @@ distie <- aledist_it(model, call = call_r)
 
 ale <- boot_it(model, call = call_b, dist = distie) 
 
+saveRDS(ale, paste0("lcta/results/ale", run_suffix, ".rds"))
+
 # Extract the ALE data and format for plot
 for_plot <- 
   ale %>%
@@ -126,6 +131,7 @@ for_plot <-
   dplyr::rename(y = .y_median) %>% 
   dplyr::mutate(x = dplyr::if_else(stringr::str_detect(variable, "karst|water"), x/1000, x),
                 label_ale = dplyr::case_when(variable == "euc_geog" ~ "Geographic distance (km)",
+                                             variable == "tri" ~ "Terrain ruggedness index",
                                              variable == "tpi" ~ "Terrain position index",
                                              variable == "crop_binary" ~ "Crop (binary)",
                                              variable == "human_1" ~ "Human footprint",
@@ -142,7 +148,7 @@ aler <-
   dplyr::select(aler_lo, aler_hi) 
 
 # Variable importance to order panels in plot by their relative importance
-imp <- readRDS("lcta/results/permutation_importance.rds")
+imp <- readRDS(paste0("lcta/results/permutation_importance", run_suffix, ".rds"))
 
 # Add in rugs for each variable to show where most data are in the distribution
 rugs <- 
@@ -151,12 +157,13 @@ rugs <-
   tidyr::pivot_longer(., cols = everything(), names_to = "variable", values_to = "x") %>% 
   mutate(x = if_else(str_detect(variable, "karst|water"), x/1000, x),
          label_ale = dplyr::case_when(variable == "euc_geog" ~ "Geographic distance (km)",
+                                      variable == "tri" ~ "Terrain ruggedness index",
                                       variable == "tpi" ~ "Terrain position index",
                                        variable == "crop_binary" ~ "Crop (binary)",
                                       variable == "human_1" ~ "Human footprint",
                                       variable == "elev" ~ "Elevation (m)",
                                       variable == "d_water" ~ "Distance to water (km)",
-                                      T ~ "Distance to karst (km)"),
+                                      variable == "d_karst" ~ "Distance to karst (km)"),
          y = min(for_plot$y))
 
 # Restrict x-axis to the middle 99.8% of data
@@ -214,5 +221,5 @@ for_plot_aler %>%
   scale_y_continuous(limits = minmax, expand = expansion(mult = c(.02, .01))) +
   scale_x_continuous(expand = expansion(mult = c(.005, 0))) 
 
-ggsave("lcta/outputs/figures/ale_boot.tiff", height = 9, width = 9, compression = "lzw")
+ggsave(paste0("lcta/outputs/figures/ale_boot", run_suffix, ".tiff"), height = 9, width = 11, compression = "lzw")
 

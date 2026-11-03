@@ -23,8 +23,12 @@ sapply(c("dplyr", "stringr", "tibble", "tibble", "ggplot2", "purrr"),
 
 source("lcta/scripts/cv_diagnostics.R")   # compute_fold_metrics(), cv_permutation_importance()
 
+## If running with a subset of variables (excluding karst vars and eco_niche)
+## If not, comment this line out
+source("lcta/scripts/run_config.R")
+
 ## ---- User configure ----
-model_dir    <- "lcta/models/"
+model_dir    <- paste0("lcta/models/", run_suffix)
 fig_dir      <- "lcta/outputs/figures/"
 response_col <- "gd"    
 n_repeats    <- 100      
@@ -94,13 +98,14 @@ importance <- perm$summary %>%
   dplyr::mutate(label = 
                   dplyr::case_when(variable == "euc_geog" ~ "Geographic distance",
                                    variable == "tpi" ~ "Terrain position index",
-                                   variable == "crop_binary" ~ "Crop",
+                                   variable == "tri" ~ "Terrain ruggedness index",
+                                   variable == "crop_binary" ~ "Crop (binary)",
                                    variable == "human_1" ~ "Human footprint",
                                    variable == "elev" ~ "Elevation",
                                    variable == "d_water" ~ "Distance to water",
-                                   T ~ "Distance to karst")) 
+                                   variable == "d_karst" ~ "Distance to karst")) 
 
-saveRDS(importance, "lcta/results/permutation_importance.rds")
+saveRDS(importance, paste0("lcta/results/permutation_importance", run_suffix, ".rds"))
 
 ## ----------------------------------------------------------------------
 ## Plot -- single panel, variables ordered ascending by importance 
@@ -133,6 +138,6 @@ p <- ggplot2::ggplot(plot_data, ggplot2::aes(y = label, x = mean_pct, color = ef
   ggplot2::labs(color = NULL) +
   ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0.02, .01)))
 
-ggplot2::ggsave(file.path(fig_dir, "permutation_importance.tiff"), p, width = 6, 
+ggplot2::ggsave(file.path(fig_dir, paste0("permutation_importance", run_suffix, ".tiff")), p, width = 6, 
                 height = 5, dpi = 600, bg = "white", compression = "lzw")
 

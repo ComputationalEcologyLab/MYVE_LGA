@@ -23,7 +23,7 @@
 ## straight-line one.
 ##
 ## Does NOT touch results/bat_variable_selection.rds -- saves to
-## lcta/results/bat_variable_selection_lcp<ITERATION>.rds instead, and prints a
+## results/bat_variable_selection_lcp<ITERATION>.rds instead, and prints a
 ## comparison against the straight-line result so you can see exactly
 ## what would change before deciding whether to adopt it.
 ##
@@ -38,7 +38,7 @@
 ## comparable to the fully-tuned RMSE saved on the existing iteration-
 ## <ITERATION> model on disk (from fit_gbm_cv()'s full tuneGrid search in
 ## 03/04). When the reselected set differs from what's currently locked
-## in (lcta/results/bat_variable_selection.rds), this fits a FULLY TUNED model
+## in (results/bat_variable_selection.rds), this fits a FULLY TUNED model
 ## (fit_gbm_cv(), same tuneGrid as 03/04) using the reselected variables
 ## on the SAME LCP lines already used for reselection above, and compares
 ## its pooled RMSE against:
@@ -62,25 +62,35 @@ source("lcta/scripts/variable_selection_tools.R")
 source("lcta/scripts/fit_tools.R")    # fit_gbm_cv(), for the tuned RMSE comparison
 source("lcta/scripts/cv_diagnostics.R") # compute_fold_metrics() to compare tuned RMSE 
 
+## If running with a subset of variables (excluding karst vars and eco_niche)
+## If not, comment this line out
+source("lcta/scripts/run_config.R")
+
 ## ---- User configure ----
 response_col   <- "gd"                                
 forced_vars    <- "euc_geog"                           
-candidate_vars <- var_names # every raster-derived covariate
+candidate_vars <- setdiff(var_names, drop_vars) # every raster-derived covariate
 
 ## Same mutually-exclusive variable groups as 02_select_variables.R -- see
 ## its header note and select_variables_forced()'s exclusive_groups
-## argument (selection_tools.R) for what this enforces.
+## argument (selection_helpers.R) for what this enforces.
 exclusive_var_groups <- list(
   c("crop_binary", "d_crop"),
   c("karst_prop", "d_karst"),
   c("human_1", "human_2", "lights"),
   c("forest_prop_250", "forest_prop_gcam"),
-  c("slope", "tri")
+  c("slope", "tri"),
+  c("water_prop", "d_water")
 )
 
-ITERATION      <- 3     # which completed LCP iteration to reselect
-lines_dir      <- "lcta/outputs/lcp_lines/"
-model_dir      <- "lcta/models/"
+exclusive_var_groups <-
+  exclusive_var_groups %>% 
+  lapply(intersect, candidate_vars) %>% 
+  purrr::keep(~ length(.x) > 1)
+
+ITERATION      <- 2     # which completed LCP iteration to reselect
+model_dir     <- paste0("lcta/models/", run_suffix, "/")     # straight-line will be iteration 0
+lines_dir     <- paste0("lcta/outputs/lcp_lines/", run_suffix, "/")
 noCLS          <- 60
 
 SELECTION_MODE <- "robust"   # "standard" or "robust" -- see the header
@@ -105,7 +115,7 @@ lines_path <- function(iteration, dir = lines_dir) paste0(dir, "lcp_", iteration
 model_path <- function(iteration, dir = model_dir) paste0(dir, "lcp_", iteration, ".rds")
 
 folds              <- readRDS("lcta/results/bat_cv_folds.rds")
-selection_straight <- readRDS("lcta/results/bat_variable_selection.rds")
+selection_straight <- readRDS(paste0("lcta/results/bat_variable_selection", run_suffix, ".rds"))
 pairs <- readRDS("lcta/data/samples_pairwise.rds") %>%  
   dplyr::mutate(index = dplyr::row_number())
 
@@ -155,7 +165,7 @@ if (SELECTION_MODE == "robust") {
 }
 
 dir.create("results", recursive = TRUE, showWarnings = FALSE)
-saveRDS(selection_lcp, paste0("lcta/results/bat_variable_selection_lcp", ITERATION, ".rds"))
+saveRDS(selection_lcp, paste0("lcta/results/bat_variable_selection_lcp", ITERATION, run_suffix, ".rds"))
 
 ## ----------------------------------------------------------------------
 ## Comparison -- straight-line selection vs. LCP-N reselection

@@ -30,13 +30,20 @@ sapply(c("dplyr", "parallel", "doParallel", "foreach"),
        character.only = T)
 
 source("lcta/scripts/01_extract_covariates.R")
-source("lcta/scripts/selection_helpers.R")
+source("lcta/scripts/variable_selection_tools.R")
+
+## If running with a subset of variables (excluding karst vars and eco_niche)
+## If not, comment this line out
+source("lcta/scripts/run_config.R")
+
 
 ## ---- User configure -- 
 response_col   <- "gd"                 
 forced_vars    <- "euc_geog"  # forced variable(s); character(0) for none
 candidate_vars <- var_names             # every raster-derived covariate
                                         # used in 01_extract_covariates.R
+
+candidate_vars <-setdiff(var_names, drop_vars)
 
 ## Variable pairs/groups that are different representations of the same
 ## underlying thing -- forward selection only ever keeps ONE member of
@@ -48,8 +55,14 @@ exclusive_var_groups <- list(
   c("karst_prop", "d_karst"),
   c("human_1", "human_2", "lights"),
   c("forest_prop_250", "forest_prop_gcam"),
-  c("slope", "tri")
+  c("slope", "tri"),
+  c("water_prop", "d_water")
 )
+
+exclusive_var_groups <-
+  exclusive_var_groups %>% 
+  lapply(intersect, candidate_vars) %>% 
+  purrr::keep(~ length(.x) > 1)
 
 noCLS          <- 60   
 
@@ -109,5 +122,5 @@ if (SELECTION_MODE == "robust") {
   selection_results <- c(res, list(mode = "standard"))
 }
 
-saveRDS(selection_results, "lcta/results/bat_variable_selection.rds")
+saveRDS(selection_results, paste0("lcta/results/bat_variable_selection", run_suffix, ".rds"))
 

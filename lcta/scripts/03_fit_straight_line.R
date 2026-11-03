@@ -17,6 +17,8 @@
 ## (lcta/results/straight_line_extraction.rds) instead of re-extracting
 ## ============================================================================
 
+Sys.setenv(OPENBLAS_NUM_THREADS = "1", OMP_NUM_THREADS = "1", MKL_NUM_THREADS = "1")
+
 # Load packages
 sapply(c("dplyr", "parallel", "foreach", "doParallel"), 
        require, 
@@ -25,17 +27,20 @@ sapply(c("dplyr", "parallel", "foreach", "doParallel"),
 source("lcta/scripts/01_extract_covariates.R")
 source("lcta/scripts/fit_tools.R")
 
+## If running with a subset of variables (excluding karst vars and eco_niche)
+## If not, comment this line out
+source("lcta/scripts/run_config.R")
 
 ## ---- User configuration -- 
 response_col <- "gd"           
-outdir       <- "lcta/models/"
+outdir       <- paste0("lcta/models/", run_suffix, "/")
 noCLS        <- 60
 ## ---------------------------------------------------------------
 
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 folds             <- readRDS("lcta/results/bat_cv_folds.rds")
-selection_results <- readRDS("lcta/results/bat_variable_selection.rds")
+selection_results <- readRDS(paste0("lcta/results/bat_variable_selection_lcp1", run_suffix, ".rds"))
 pairs <- readRDS("lcta/data/samples_pairwise.rds") %>%   # ADAPT: your master file path
   dplyr::mutate(index = dplyr::row_number())
 

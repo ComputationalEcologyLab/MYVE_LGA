@@ -21,6 +21,8 @@
 ##
 ## ============================================================================
 
+Sys.setenv(OPENBLAS_NUM_THREADS = "1", OMP_NUM_THREADS = "1", MKL_NUM_THREADS = "1")
+
 # Load packages
 sapply(c("dplyr", "parallel", "foreach", "doParallel"), 
        require, 
@@ -28,13 +30,17 @@ sapply(c("dplyr", "parallel", "foreach", "doParallel"),
 
 source("lcta/scripts/lcp_tools.R")
 
-## ---- User configure ----
+## If running with a subset of variables (excluding karst vars and eco_niche)
+## If not, comment this line out
+source("lcta/scripts/run_config.R")
+
+## ---- User inputs ----
 response_col  <- "gd"       
-model_dir     <- "lcta/models/"      # straight-line will be iteration 0
-lines_dir     <- "lcta/outputs/lcp_lines/"
+model_dir     <- paste0("lcta/models/", run_suffix, "/")     # straight-line will be iteration 0
+lines_dir     <- paste0("lcta/outputs/lcp_lines/", run_suffix, "/")
 n_iterations  <- 5              # Number of LCP iterations after the straight-
                                 # line model
-FORCE_RECOMPUTE <- FALSE        # if TRUE, recomputes every iteration from 
+FORCE_RECOMPUTE <- TRUE         # if TRUE, recomputes every iteration from 
                                 # scratch even if its output files already exist
 noCLS         <- 60
 ## ---------------------------------------------------------------
@@ -45,7 +51,7 @@ dir.create(lines_dir, recursive = TRUE, showWarnings = FALSE)
 folds             <- readRDS("lcta/results/bat_cv_folds.rds")
 
 # Change this if it gets updated along the way
-selection_results <- readRDS("lcta/results/bat_variable_selection.rds")
+selection_results <- readRDS(paste0("lcta/results/bat_variable_selection_lcp1", run_suffix, ".rds"))
 
 pairs <- readRDS("lcta/data/samples_pairwise.rds") %>%  
   dplyr::mutate(index = dplyr::row_number())

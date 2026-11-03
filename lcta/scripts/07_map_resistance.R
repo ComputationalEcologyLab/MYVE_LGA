@@ -17,7 +17,12 @@ sapply(c("dplyr", "stringr", "caret", "gbm", "terra"),
 ## ----------------------------------------------------------------------
 source("lcta/scripts/cv_diagnostics.R")
 
-model_dir   <- "lcta/models/"
+## If running with a subset of variables (excluding karst vars and eco_niche)
+## If not, comment this line out
+source("lcta/scripts/run_config.R")
+
+
+model_dir   <- paste0("lcta/models/", run_suffix)
 
 find_best_iteration <- function(model_dir) {
   files <- list.files(model_dir, pattern = "^lcp_[1-9][0-9]*\\.rds$", full.names = TRUE)
@@ -86,5 +91,5 @@ map_dir <- "lcta/outputs/maps"
 dir.create(map_dir, recursive = TRUE, showWarnings = FALSE)
 
 pred_rast %>% 
-  terra::writeRaster(., stringr::str_c(map_dir, "/resistance_map", ".tif"), 
+  terra::writeRaster(., stringr::str_c(map_dir, "/resistance_map", run_suffix, ".tif"), 
                      datatype = "FLT4S", overwrite = T)
